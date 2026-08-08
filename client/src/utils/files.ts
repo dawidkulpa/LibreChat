@@ -293,6 +293,7 @@ export const validateFiles = ({
       mimeTypesToCheck = [
         ...(fileConfig?.text?.supportedMimeTypes || []),
         ...(fileConfig?.ocr?.supportedMimeTypes || []),
+        ...(fileConfig?.documentParser?.supportedMimeTypes || []),
         ...(fileConfig?.stt?.supportedMimeTypes || []),
       ];
     }
@@ -392,6 +393,7 @@ const isContextType = (type: string, fileConfig: FileConfig | null): boolean =>
   checkType(type, [
     ...(fileConfig?.text?.supportedMimeTypes || []),
     ...(fileConfig?.ocr?.supportedMimeTypes || []),
+    ...(fileConfig?.documentParser?.supportedMimeTypes || []),
     ...(fileConfig?.stt?.supportedMimeTypes || []),
   ]);
 
