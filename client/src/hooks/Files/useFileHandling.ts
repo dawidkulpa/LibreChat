@@ -62,6 +62,8 @@ export const clearUploadRecovery = (fileId: string) => {
   takeUploadRecovery(fileId)?.onAbort?.(fileId);
 };
 
+export const hasInFlightUpload = (fileId: string): boolean => uploadErrorCallbacks.has(fileId);
+
 const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: FileHandlingState) => {
   const localize = useLocalize();
   const queryClient = useQueryClient();
