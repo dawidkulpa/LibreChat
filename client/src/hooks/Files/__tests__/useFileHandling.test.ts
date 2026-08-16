@@ -1,6 +1,10 @@
 import { renderHook, act } from '@testing-library/react';
 import { Constants, EModelEndpoint, getEndpointFileConfig } from 'librechat-data-provider';
 
+type MockUploadMutationOptions = {
+  onError?: (error: unknown, body: FormData) => void;
+};
+
 beforeAll(() => {
   global.URL.createObjectURL = jest.fn(() => 'blob:mock-url');
   global.URL.revokeObjectURL = jest.fn();
@@ -28,6 +32,7 @@ const mockLocalize = jest.fn((key: string) => key);
 
 let mockConversation: Record<string, string | null | undefined> = {};
 let mockIsTemporary = false;
+let mockUploadOptions: MockUploadMutationOptions = {};
 
 jest.mock('~/Providers/ChatContext', () => ({
   useChatContext: jest.fn(() => ({
@@ -65,9 +70,10 @@ jest.mock('@tanstack/react-query', () => ({
 
 jest.mock('~/data-provider', () => ({
   useGetFileConfig: jest.fn(() => ({ data: null })),
-  useUploadFileMutation: jest.fn((_opts: Record<string, unknown>) => ({
-    mutate: mockMutate,
-  })),
+  useUploadFileMutation: jest.fn((opts: MockUploadMutationOptions) => {
+    mockUploadOptions = opts;
+    return { mutate: mockMutate };
+  }),
 }));
 
 jest.mock('~/hooks/useLocalize', () => {
@@ -121,6 +127,7 @@ describe('useFileHandling', () => {
     mockProcessFileForUpload.mockImplementation(async (file: File) => file);
     mockConversation = {};
     mockIsTemporary = false;
+    mockUploadOptions = {};
   });
 
   const loadHook = async () => (await import('../useFileHandling')).default;
@@ -508,23 +515,37 @@ describe('useFileHandling', () => {
       expect(mockMutate).toHaveBeenCalledTimes(1);
     });
 
-    it('registers a call-scoped upload error callback', async () => {
-      const onUploadError = jest.fn();
+    it('runs the matching recovery when the first of two concurrent uploads fails', async () => {
+      const consoleLog = jest.spyOn(console, 'log').mockImplementation(() => undefined);
+      const firstRecovery = jest.fn();
+      const secondRecovery = jest.fn();
       const useFileHandling = await loadHook();
       const { result } = renderHook(() => useFileHandling());
 
       await act(async () => {
         await result.current.handleFiles(
-          [new File(['hello'], 'notes.txt', { type: 'text/plain' })],
+          [new File(['first'], 'pasted-text.txt', { type: 'text/plain' })],
           undefined,
-          onUploadError,
+          firstRecovery,
+        );
+        await result.current.handleFiles(
+          [new File(['second'], 'pasted-text-2.txt', { type: 'text/plain' })],
+          undefined,
+          secondRecovery,
         );
       });
 
-      expect(mockMutate).toHaveBeenCalledTimes(1);
-      const mutationOptions = mockMutate.mock.calls[0][1];
-      mutationOptions.onError();
-      expect(onUploadError).toHaveBeenCalledTimes(1);
+      expect(mockMutate).toHaveBeenCalledTimes(2);
+      const firstUploadBody = mockMutate.mock.calls[0][0] as FormData;
+
+      act(() => mockUploadOptions.onError?.(new Error('first upload failed'), firstUploadBody));
+
+      expect(firstRecovery).toHaveBeenCalledTimes(1);
+      expect(secondRecovery).not.toHaveBeenCalled();
+
+      act(() => mockUploadOptions.onError?.(new Error('first upload failed'), firstUploadBody));
+      expect(firstRecovery).toHaveBeenCalledTimes(1);
+      consoleLog.mockRestore();
     });
   });
 });
