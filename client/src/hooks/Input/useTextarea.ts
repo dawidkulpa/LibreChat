@@ -38,6 +38,7 @@ export default function useTextarea({
   placeholder,
   allowSubmitWhileGenerating = false,
   onDuringRunModifier,
+  answerModeActive = false,
 }: {
   textAreaRef: React.RefObject<HTMLTextAreaElement>;
   submitButtonRef: React.RefObject<HTMLButtonElement>;
@@ -49,6 +50,8 @@ export default function useTextarea({
   /** During-run modifier chords: ⌘/Ctrl+Enter = the non-default action,
    *  ⌥/Alt+Enter = interrupt & send. Enter itself submits the default. */
   onDuringRunModifier?: (kind: 'other' | 'interrupt' | 'preempt') => void;
+  /** Keeps pasted text inline while the composer is answering a paused question. */
+  answerModeActive?: boolean;
 }) {
   const localize = useLocalize();
   const getSender = useGetSender();
@@ -317,6 +320,10 @@ export default function useTextarea({
         return;
       }
 
+      if (answerModeActive) {
+        return;
+      }
+
       const pastedText = clipboardData.getData('text/plain');
       const attachment = resolvePastedTextFile(pastedText, {
         enabled: pasteLongTextAsFile,
@@ -333,10 +340,18 @@ export default function useTextarea({
 
       e.preventDefault();
       const conversationId = conversation?.conversationId;
-      const composerValue = textArea.value;
-      const restorePaste = () => {
-        insertTextAtCursor(textArea, pastedText);
+      const selectionStart = textArea.selectionStart;
+      const selectionEnd = textArea.selectionEnd;
+      if (selectionStart !== selectionEnd) {
+        textArea.setRangeText('', selectionStart, selectionEnd, 'end');
+        textArea.dispatchEvent(new Event('input', { bubbles: true }));
         forceResize(textArea);
+      }
+      const composerValue = textArea.value;
+      const restorePaste = (target: HTMLTextAreaElement) => {
+        target.setSelectionRange(selectionStart, selectionStart);
+        insertTextAtCursor(target, pastedText);
+        forceResize(target);
       };
       const restorePasteAfterUploadFailure = () => {
         const currentTextArea = textAreaRef.current;
@@ -348,8 +363,7 @@ export default function useTextarea({
           return;
         }
 
-        insertTextAtCursor(currentTextArea, pastedText);
-        forceResize(currentTextArea);
+        restorePaste(currentTextArea);
       };
       void routeClipboardFiles(
         [attachment.file],
@@ -357,7 +371,7 @@ export default function useTextarea({
         restorePasteAfterUploadFailure,
       ).then((accepted) => {
         if (!accepted) {
-          restorePaste();
+          restorePaste(textArea);
         }
       });
     },
@@ -371,6 +385,7 @@ export default function useTextarea({
       getUploadOptions,
       pasteLongTextAsFile,
       routeClipboardFiles,
+      answerModeActive,
     ],
   );
 

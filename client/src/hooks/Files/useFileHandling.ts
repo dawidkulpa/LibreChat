@@ -333,6 +333,7 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
     }
 
     /* Process files */
+    let uploadStarted = false;
     for (const originalFile of fileList) {
       const file_id = v4();
       try {
@@ -432,10 +433,12 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
           const isImage = finalProcessedFile.type.split('/')[0] === 'image';
           if (isImage) {
             loadImage(updatedExtendedFile, newPreview, onUploadError);
+            uploadStarted = true;
             continue;
           }
 
           await startUpload(updatedExtendedFile, onUploadError);
+          uploadStarted = true;
         } else {
           // File wasn't processed, proceed with original
           const isImage = originalFile.type.split('/')[0] === 'image';
@@ -449,10 +452,12 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
 
           if (isImage) {
             loadImage(readyExtendedFile, initialPreview, onUploadError);
+            uploadStarted = true;
             continue;
           }
 
           await startUpload(readyExtendedFile, onUploadError);
+          uploadStarted = true;
         }
       } catch (error) {
         deleteFileById(file_id);
@@ -465,7 +470,7 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
       }
     }
 
-    return true;
+    return uploadStarted;
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>, _toolResource?: string) => {
