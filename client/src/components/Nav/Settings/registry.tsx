@@ -195,6 +195,19 @@ export const registry: SettingEntry[] = [
     }),
   },
   {
+    id: 'pasteLongTextAsFile',
+    tab: CHAT,
+    section: 'sending',
+    labelKey: 'com_nav_paste_long_text_as_file',
+    keywords: ['paste', 'clipboard', 'attachment', 'file', 'text'],
+    Component: toggleControl({
+      stateAtom: store.pasteLongTextAsFile,
+      localizationKey: 'com_nav_paste_long_text_as_file',
+      switchId: 'pasteLongTextAsFile',
+      hoverCardText: 'com_nav_info_paste_long_text_as_file',
+    }),
+  },
+  {
     id: 'saveBadgesState',
     tab: CHAT,
     section: 'sending',
