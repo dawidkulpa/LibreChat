@@ -55,6 +55,7 @@ module.exports = {
     getConvosByCursor: jest.fn(),
     getConvo: jest.fn(),
     deleteConvos: jest.fn(),
+    archiveAllConvos: jest.fn(),
     saveConvo: jest.fn(),
     deleteAllSharedLinks: jest.fn(),
     deleteConvoSharedLink: jest.fn(),

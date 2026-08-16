@@ -14,6 +14,7 @@ import {
   findConversationInInfinite,
   updateConvoInAllQueries,
   removeConvoFromAllQueries,
+  clearArchivedConversationMessagesCache,
   clearDeletedConversationMessagesCache,
 } from '~/utils';
 import useUpdateTagsInConvo from '~/hooks/Conversations/useUpdateTagsInConvo';
@@ -126,6 +127,9 @@ export const useArchiveConvoMutation = (
           [QueryKeys.conversation, vars.conversationId],
           isArchived ? null : _data,
         );
+        if (isArchived) {
+          clearArchivedConversationMessagesCache(queryClient, vars.conversationId);
+        }
         if (_data.chatProjectId) {
           queryClient.invalidateQueries([QueryKeys.project, _data.chatProjectId]);
         }
@@ -148,6 +152,24 @@ export const useArchiveConvoMutation = (
       ..._options,
     },
   );
+};
+
+export const useArchiveAllConversationsMutation = (
+  options?: t.ArchiveAllConversationsOptions,
+): UseMutationResult<t.TArchiveAllConversationsResponse, unknown, void, unknown> => {
+  const queryClient = useQueryClient();
+  const { onSuccess, ..._options } = options || {};
+
+  return useMutation(() => dataService.archiveAllConversations(), {
+    onSuccess: (data, vars, context) => {
+      queryClient.invalidateQueries([QueryKeys.allConversations]);
+      queryClient.invalidateQueries([QueryKeys.archivedConversations]);
+      queryClient.invalidateQueries([QueryKeys.projectConversations]);
+      queryClient.invalidateQueries([QueryKeys.projects]);
+      onSuccess?.(data, vars, context);
+    },
+    ..._options,
+  });
 };
 
 export const usePinConversationMutation = (
