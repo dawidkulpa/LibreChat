@@ -45,6 +45,7 @@ export * from './approval';
 export * from './steer';
 export * from './activityLabels';
 export * from './documentTitle';
+export * from './reasoningLabels';
 export * from './numbers';
 export { default as cn } from './cn';
 export { default as logger } from './logger';
