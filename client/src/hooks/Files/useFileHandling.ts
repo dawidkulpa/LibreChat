@@ -43,6 +43,11 @@ export type FileHandlingState = {
 };
 
 const noop = () => {};
+const uploadErrorCallbacks = new Map<string, () => void>();
+
+export const clearUploadRecovery = (fileId: string) => {
+  uploadErrorCallbacks.delete(fileId);
+};
 
 const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: FileHandlingState) => {
   const localize = useLocalize();
@@ -50,7 +55,6 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
   const { showToast } = useToastContext();
   const [errors, setErrors] = useState<string[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const uploadErrorCallbacksRef = useRef(new Map<string, () => void>());
   const { startUploadTimer, clearUploadTimer } = useDelayedUploadToast();
   const { files, setFiles, conversation } = fileState;
   const setFilesLoading = fileState.setFilesLoading ?? noop;
@@ -119,7 +123,7 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
   const uploadFile = useUploadFileMutation(
     {
       onSuccess: (data) => {
-        uploadErrorCallbacksRef.current.delete(data.temp_file_id);
+        clearUploadRecovery(data.temp_file_id);
         clearUploadTimer(data.temp_file_id);
         console.log('upload success', data);
         if (agent_id) {
@@ -163,8 +167,8 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
         const error = _error as TError | undefined;
         console.log('upload error', error);
         const file_id = body.get('file_id') as string;
-        const onUploadError = uploadErrorCallbacksRef.current.get(file_id);
-        uploadErrorCallbacksRef.current.delete(file_id);
+        const onUploadError = uploadErrorCallbacks.get(file_id);
+        clearUploadRecovery(file_id);
         const tool_resource = body.get('tool_resource');
         if (tool_resource === EToolResources.execute_code) {
           setEphemeralAgent((prev) => ({
@@ -191,7 +195,7 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
 
   const uploadWithRecovery = (formData: FormData, file_id: string, onUploadError?: () => void) => {
     if (onUploadError) {
-      uploadErrorCallbacksRef.current.set(file_id, onUploadError);
+      uploadErrorCallbacks.set(file_id, onUploadError);
     }
     uploadFile.mutate(formData);
   };
@@ -483,13 +487,17 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
     }
   };
 
-  const abortUpload = () => {
+  const abortUpload = (fileId?: string) => {
     if (abortControllerRef.current) {
       logger.log('files', 'Aborting upload');
       abortControllerRef.current.abort('User aborted upload');
       abortControllerRef.current = null;
     }
-    uploadErrorCallbacksRef.current.clear();
+    if (fileId) {
+      clearUploadRecovery(fileId);
+      return;
+    }
+    uploadErrorCallbacks.clear();
   };
 
   return {
