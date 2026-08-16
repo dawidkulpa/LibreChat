@@ -184,7 +184,7 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
     abortControllerRef.current?.signal,
   );
 
-  const startUpload = async (extendedFile: ExtendedFile) => {
+  const startUpload = async (extendedFile: ExtendedFile, onUploadError?: () => void) => {
     const filename = extendedFile.file?.name ?? 'File';
     startUploadTimer(extendedFile.file_id, filename, extendedFile.size);
 
@@ -234,7 +234,7 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
         formData.append('agent_id', conversation.agent_id);
       }
 
-      uploadFile.mutate(formData);
+      uploadFile.mutate(formData, onUploadError ? { onError: onUploadError } : undefined);
       return;
     }
 
@@ -264,10 +264,10 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
       formData.append('model', convoModel);
     }
 
-    uploadFile.mutate(formData);
+    uploadFile.mutate(formData, onUploadError ? { onError: onUploadError } : undefined);
   };
 
-  const loadImage = (extendedFile: ExtendedFile, preview: string) => {
+  const loadImage = (extendedFile: ExtendedFile, preview: string, onUploadError?: () => void) => {
     const img = new Image();
     img.onload = async () => {
       extendedFile.width = img.width;
@@ -278,7 +278,7 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
       };
       replaceFile(extendedFile);
 
-      await startUpload(extendedFile);
+      await startUpload(extendedFile, onUploadError);
     };
     img.src = preview;
   };
@@ -288,6 +288,7 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
   const handleFiles = async (
     _files: FileList | File[],
     _toolResource?: string,
+    onUploadError?: () => void,
   ): Promise<boolean> => {
     abortControllerRef.current = new AbortController();
     const fileList = Array.from(_files);
@@ -418,11 +419,11 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
 
           const isImage = finalProcessedFile.type.split('/')[0] === 'image';
           if (isImage) {
-            loadImage(updatedExtendedFile, newPreview);
+            loadImage(updatedExtendedFile, newPreview, onUploadError);
             continue;
           }
 
-          await startUpload(updatedExtendedFile);
+          await startUpload(updatedExtendedFile, onUploadError);
         } else {
           // File wasn't processed, proceed with original
           const isImage = originalFile.type.split('/')[0] === 'image';
@@ -435,11 +436,11 @@ const useFileHandlingCore = (params: UseFileHandling | undefined, fileState: Fil
           replaceFile(readyExtendedFile);
 
           if (isImage) {
-            loadImage(readyExtendedFile, initialPreview);
+            loadImage(readyExtendedFile, initialPreview, onUploadError);
             continue;
           }
 
-          await startUpload(readyExtendedFile);
+          await startUpload(readyExtendedFile, onUploadError);
         }
       } catch (error) {
         deleteFileById(file_id);
