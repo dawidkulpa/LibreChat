@@ -1,5 +1,6 @@
 // Mock all dependencies - define mocks before imports
 const mockGetTenantId = jest.fn();
+const mockResolveUploadedImageArguments = jest.fn();
 
 jest.mock('@librechat/data-schemas', () => ({
   logger: {
@@ -89,6 +90,10 @@ jest.mock('./Tools/mcp', () => ({
 
 jest.mock('./GraphTokenService', () => ({
   getGraphApiToken: jest.fn(),
+}));
+
+jest.mock('./MCP/images', () => ({
+  resolveUploadedImageArguments: (...args) => mockResolveUploadedImageArguments(...args),
 }));
 
 describe('tests for the new helper functions used by the MCP connection status endpoints', () => {
@@ -1389,6 +1394,7 @@ describe('User parameter passing tests', () => {
     // Reset getAppConfig mock to default (no restrictions)
     mockGetAppConfig.mockReset();
     mockGetAppConfig.mockResolvedValue({});
+    mockResolveUploadedImageArguments.mockReset();
   });
 
   describe('createMCPTools', () => {
@@ -2331,6 +2337,59 @@ describe('User parameter passing tests', () => {
           toolName: 'test-tool',
           requestBody,
         }),
+      );
+    });
+
+    it('resolves uploaded-image placeholders for an opted-in server using the effective runtime user', async () => {
+      const capturedUser = { id: 'captured-user', role: 'USER' };
+      const effectiveUser = { id: 'effective-user', role: 'USER' };
+      const request = { body: { files: [{ file_id: 'image-1', type: 'image/png' }] } };
+      const toolArguments = { image: '/mnt/data/0.png', prompt: 'keep this field' };
+      const resolvedArguments = {
+        image: 'data:image/png;base64,aW1hZ2U=',
+        prompt: 'keep this field',
+      };
+      const { getRoleByName } = require('~/models');
+      getRoleByName.mockResolvedValue({
+        permissions: { [PermissionTypes.MCP_SERVERS]: { [Permissions.USE]: true } },
+      });
+      const mockCallTool = jest.fn().mockResolvedValue(['ok', null]);
+      mockGetMCPManager.mockReturnValue({ callTool: mockCallTool });
+      mockResolveUploadedImageArguments.mockResolvedValue(resolvedArguments);
+
+      const mcpTool = await createMCPTool({
+        config: { forwardUploadedImages: true, type: 'stdio', command: 'node' },
+        request,
+        user: capturedUser,
+        toolKey: `edit${D}arbitrary-server`,
+        provider: 'openai',
+        userMCPAuthMap: {},
+        availableTools: {
+          [`edit${D}arbitrary-server`]: {
+            function: {
+              description: 'Edit an image',
+              parameters: { type: 'object', properties: {} },
+            },
+          },
+        },
+      });
+
+      await expect(
+        mcpTool.invoke(toolArguments, {
+          configurable: { user: effectiveUser },
+          metadata: { provider: 'openai', thread_id: 'thread-1', run_id: 'run-1' },
+          toolCall: {},
+        }),
+      ).resolves.toBe('ok');
+
+      expect(mockResolveUploadedImageArguments).toHaveBeenCalledWith({
+        forwardUploadedImages: true,
+        request,
+        toolArguments,
+        user: effectiveUser,
+      });
+      expect(mockCallTool).toHaveBeenCalledWith(
+        expect.objectContaining({ toolArguments: resolvedArguments, user: effectiveUser }),
       );
     });
   });

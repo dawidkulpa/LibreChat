@@ -22,7 +22,7 @@ jest.mock('~/server/services/Files/strategies', () => ({
 }));
 
 const axios = require('axios');
-const { FileSources } = require('librechat-data-provider');
+const { FileSources, VisionModes } = require('librechat-data-provider');
 const { encodeAndFormat } = require('./encode');
 
 const makeReq = () => ({ body: {}, config: {} });
@@ -107,5 +107,53 @@ describe('encodeAndFormat - request memory guard', () => {
     expect(mockRunGuardedEncode).not.toHaveBeenCalled();
     expect(result.image_urls).toHaveLength(1);
     expect(result.image_urls[0].image_url.url).toBe(`data:image/png;base64,${localBase64}`);
+  });
+
+  it('includes the persisted file identity only for MCP image forwarding', async () => {
+    const localBase64 = Buffer.from('mcp-image').toString('base64');
+    const file = {
+      source: FileSources.local,
+      height: 10,
+      width: 10,
+      type: 'image/png',
+      file_id: 'mcp-file',
+      filepath: 'local/mcp.png',
+      filename: 'mcp.png',
+      bytes: 9,
+    };
+    mockPrepareImagePayload.mockResolvedValue([file, localBase64]);
+
+    const result = await encodeAndFormat(
+      makeReq(),
+      [file],
+      { mcpImageSizeLimit: localBase64.length },
+      VisionModes.mcp,
+    );
+
+    expect(result.image_urls).toEqual([
+      expect.objectContaining({
+        file_id: file.file_id,
+        image_url: { url: `data:image/png;base64,${localBase64}`, detail: 'auto' },
+      }),
+    ]);
+  });
+
+  it('fails closed when actual MCP image bytes exceed the configured limit', async () => {
+    const localBase64 = Buffer.from('12345').toString('base64');
+    const file = {
+      source: FileSources.local,
+      height: 10,
+      width: 10,
+      type: 'image/png',
+      file_id: 'over-limit-mcp-file',
+      filepath: 'local/over-limit.png',
+      filename: 'over-limit.png',
+      bytes: 0,
+    };
+    mockPrepareImagePayload.mockResolvedValue([file, localBase64]);
+
+    await expect(
+      encodeAndFormat(makeReq(), [file], { mcpImageSizeLimit: 4 }, VisionModes.mcp),
+    ).rejects.toThrow('Image validation failed for over-limit.png');
   });
 });

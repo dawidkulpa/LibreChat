@@ -5,6 +5,7 @@ import {
   MCPServerUserInputSchema,
   MCP_USER_INPUT_FIELDS,
 } from '../src/mcp';
+import { VisionModes } from '../src/config';
 
 describe('MCP server title validation', () => {
   const titleCases = [
@@ -49,6 +50,18 @@ describe('MCP server title validation', () => {
 });
 
 describe('MCPOptionsSchema', () => {
+  it.each([
+    ['stdio', { type: 'stdio', command: 'node', args: [] }],
+    ['SSE', { type: 'sse', url: 'https://mcp-server.com/sse' }],
+    ['WebSocket', { type: 'websocket', url: 'wss://mcp-server.com/ws' }],
+    ['streamable HTTP', { type: 'streamable-http', url: 'https://mcp-server.com/mcp' }],
+  ])('preserves the uploaded-image forwarding opt-in for %s transport', (_transport, config) => {
+    for (const forwardUploadedImages of [true, false, undefined]) {
+      const result = MCPOptionsSchema.parse({ ...config, forwardUploadedImages });
+      expect(result.forwardUploadedImages).toBe(forwardUploadedImages);
+    }
+  });
+
   describe('OBO transport support', () => {
     it('should accept obo on SSE transport', () => {
       const result = MCPOptionsSchema.safeParse({
@@ -86,6 +99,12 @@ describe('MCPOptionsSchema', () => {
       });
       expect(result.success).toBe(false);
     });
+  });
+});
+
+describe('VisionModes', () => {
+  it('defines a distinct MCP image-encoding mode', () => {
+    expect(VisionModes.mcp).toBe('mcp');
   });
 });
 

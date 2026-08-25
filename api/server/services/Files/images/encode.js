@@ -98,7 +98,7 @@ const blobStorageSources = new Set([
  * @returns {Promise<{ files: MongoFile[]; image_urls: MessageContentImageUrl[] }>} - A promise that resolves to the result object containing the encoded images and file details.
  */
 async function encodeAndFormat(req, files, params, mode) {
-  const { provider, endpoint } = params;
+  const { provider, endpoint, mcpImageSizeLimit } = params;
   const effectiveEndpoint = endpoint ?? provider;
   const promises = [];
   /** @type {Record<FileSources, Pick<ReturnType<typeof getStrategyFunctions>, 'prepareImagePayload' | 'getDownloadStream'>>} */
@@ -203,6 +203,15 @@ async function encodeAndFormat(req, files, params, mode) {
         : Buffer.from(imageContent, 'base64');
 
       if (imageBuffer) {
+        if (
+          mode === VisionModes.mcp &&
+          (!Number.isSafeInteger(mcpImageSizeLimit) || imageBuffer.length > mcpImageSizeLimit)
+        ) {
+          throw new Error(
+            `Image validation failed for ${file.filename}: MCP image exceeds size limit`,
+          );
+        }
+
         const validation = await validateImage(
           imageBuffer,
           imageBuffer.length,
@@ -226,8 +235,10 @@ async function encodeAndFormat(req, files, params, mode) {
       },
     };
 
-    if (mode === VisionModes.agents) {
-      result.image_urls.push({ ...imagePart });
+    if (mode === VisionModes.agents || mode === VisionModes.mcp) {
+      result.image_urls.push(
+        mode === VisionModes.mcp ? { ...imagePart, file_id: file.file_id } : { ...imagePart },
+      );
       result.files.push({ ...fileMetadata });
       continue;
     }

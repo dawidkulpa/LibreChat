@@ -353,6 +353,10 @@ describe('Tool Handlers', () => {
       const serverName = 'body-scoped';
       const toolKey = `search${Constants.mcp_delimiter}${serverName}`;
       const requestBody = { conversationId: 'conv-123', messageId: 'msg-123' };
+      const request = {
+        user: { id: fakeUser._id.toString(), role: 'USER' },
+        body: requestBody,
+      };
       const jobCreatedAt = 1234;
       const serverConfig = {
         type: 'streamable-http',
@@ -367,10 +371,7 @@ describe('Tool Handlers', () => {
         user: fakeUser._id.toString(),
         tools: [toolKey],
         options: {
-          req: {
-            user: { id: fakeUser._id.toString(), role: 'USER' },
-            body: requestBody,
-          },
+          req: request,
           jobCreatedAt,
         },
       });
@@ -383,6 +384,7 @@ describe('Tool Handlers', () => {
       );
       expect(mockCreateMCPTool).toHaveBeenCalledWith(
         expect.objectContaining({
+          request,
           requestBody,
           jobCreatedAt,
           toolKey,
@@ -725,6 +727,10 @@ describe('Tool Handlers', () => {
       const serverName = 'body-scoped';
       const toolKey = `search${Constants.mcp_delimiter}${serverName}`;
       const requestBody = { conversationId: 'conv-123', messageId: 'msg-123' };
+      const request = {
+        user: { id: fakeUser._id.toString(), role: 'USER' },
+        body: requestBody,
+      };
       const serverConfig = {
         type: 'streamable-http',
         url: 'https://api.example.com/messages/{{LIBRECHAT_BODY_MESSAGEID}}/mcp',
@@ -750,10 +756,7 @@ describe('Tool Handlers', () => {
           mcpAvailableTools: {
             [serverName]: runScopedTools,
           },
-          req: {
-            user: { id: fakeUser._id.toString(), role: 'USER' },
-            body: requestBody,
-          },
+          req: request,
         },
       });
 
@@ -762,6 +765,7 @@ describe('Tool Handlers', () => {
       expect(mockCreateMCPTool).toHaveBeenCalledWith(
         expect.objectContaining({
           availableTools: runScopedTools,
+          request,
           requestBody,
           toolKey,
           config: serverConfig,
@@ -879,6 +883,27 @@ describe('Tool Handlers', () => {
       await expect(
         loadWebSearchConfig({ allowedAddresses: { '10.0.0.5:11434': true } }),
       ).resolves.toBeDefined();
+    });
+
+    it('passes configured SearXNG engines through without the SDK fallback engines', async () => {
+      const engines = ['duckduckgo', 'startpage', 'qwant', 'brave'];
+      mockLoadWebSearchAuth.mockResolvedValueOnce({
+        authResult: {
+          searchProvider: 'searxng',
+          searxngInstanceUrl: 'http://searxng.internal:8080',
+          searxngSearchOptions: { engines },
+        },
+      });
+
+      const config = await loadWebSearchConfig({});
+
+      expect(config).toEqual(
+        expect.objectContaining({
+          searchProvider: 'searxng',
+          searxngSearchOptions: { engines },
+        }),
+      );
+      expect(config.searxngSearchOptions.engines).not.toEqual(['google', 'bing', 'duckduckgo']);
     });
   });
 });

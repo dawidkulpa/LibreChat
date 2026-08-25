@@ -166,6 +166,8 @@ const BaseOptionsSchema = z.object({
   title: z.string().regex(MCP_SERVER_TITLE_PATTERN, MCP_SERVER_TITLE_ERROR).optional(),
   /** Description of the MCP server */
   description: z.string().optional(),
+  /** Explicitly allow this server to receive data URLs for current-request uploaded images. */
+  forwardUploadedImages: z.boolean().optional(),
   /**
    * Controls whether the MCP server is initialized during application startup.
    * - true (default): Server is initialized during app startup and included in app-level connections
